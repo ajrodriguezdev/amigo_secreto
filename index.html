@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Amigo Secreto</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #fbf6ee;
+    --surface: #ffffff;
+    --surface-2: #f6efe3;
+    --ink: #2b2118;
+    --muted: #8a7c6b;
+    --border: #e8dcc9;
+    --accent: #b23a2e;
+    --accent-ink: #ffffff;
+    --accent-soft: #f6e3df;
+    --pine: #3f6b4a;
+    --pine-soft: #e6efe7;
+    --danger: #b23a2e;
+    --shadow: 0 1px 2px rgba(43,33,24,.06), 0 8px 24px rgba(43,33,24,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #1b1611;
+      --surface: #221c16;
+      --surface-2: #2a231b;
+      --ink: #f3ece1;
+      --muted: #ab9c87;
+      --border: #3a2f23;
+      --accent: #e2685a;
+      --accent-ink: #241108;
+      --accent-soft: #3a221c;
+      --pine: #7cb98a;
+      --pine-soft: #1f2c22;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Karla', system-ui, sans-serif;
+    line-height: 1.5;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+  h1,h2,h3{ font-family:'Fraunces', Georgia, serif; text-wrap:balance; margin:0; }
+
+  header.page{ text-align:center; margin-bottom: 34px; }
+  .eyebrow{
+    font-size: 12.5px; letter-spacing:.14em; text-transform:uppercase; color: var(--pine);
+    font-weight:700; margin-bottom:10px;
+  }
+  h1{ font-size: 34px; font-weight:700; color: var(--ink); margin-bottom: 10px; }
+  .subtitle{ color: var(--muted); font-size: 15px; max-width: 46ch; margin: 0 auto; }
+
+  .rules{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+  .rule-pill{
+    display:inline-flex; align-items:center; gap:6px; background: var(--surface);
+    border:1px solid var(--border); border-radius:999px; padding:7px 14px;
+    font-size:13px; color: var(--ink); box-shadow: var(--shadow);
+  }
+  .rule-pill strong{ color: var(--accent); font-family:'Fraunces',serif; font-weight:700; }
+
+  .card{
+    background: var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:26px; box-shadow: var(--shadow);
+  }
+  form.card{ margin-bottom: 36px; }
+
+  label{ display:block; font-size:13px; font-weight:600; color: var(--ink); margin-bottom:6px; }
+  .field{ margin-bottom:18px; }
+  input[type="text"], input[type="url"]{
+    width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:9px;
+    background: var(--surface-2); color: var(--ink); font-family:'Karla',sans-serif; font-size:14.5px;
+  }
+  input::placeholder{ color: var(--muted); opacity:.8; }
+  input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .options-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 4px 0 12px; }
+  .options-head h3{ font-size:16px; font-weight:600; }
+  .options-head span{ font-size:12.5px; color: var(--muted); }
+
+  .option-row{
+    display:grid; grid-template-columns: auto 1fr 1fr auto; gap:8px; align-items:center; margin-bottom:10px;
+  }
+  @media (max-width: 480px){
+    .option-row{ grid-template-columns: auto 1fr auto; }
+    .option-row .opt-link-input{ grid-column: 2 / 3; }
+  }
+  .option-row .num{
+    font-family:'Fraunces',serif; font-weight:700; color: var(--pine); font-size:14px;
+    display:flex; align-items:center; justify-content:center; width:26px; height:38px;
+  }
+  .remove-btn{
+    width:38px; height:38px; border-radius:9px; border:1px solid var(--border);
+    background: var(--surface-2); color: var(--muted); font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .remove-btn:hover{ color: var(--accent); border-color: var(--accent); }
+
+  .add-option{
+    background:none; border:1px dashed var(--border); color: var(--pine); border-radius:9px;
+    padding:9px 14px; font-size:13.5px; font-weight:600; cursor:pointer; width:100%;
+    font-family:'Karla',sans-serif;
+  }
+  .add-option:hover{ border-color: var(--pine); background: var(--pine-soft); }
+  .add-option:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .submit-row{ margin-top:22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  button.primary{
+    background: var(--accent); color: var(--accent-ink); border:none; border-radius:9px;
+    padding:12px 22px; font-size:14.5px; font-weight:700; cursor:pointer; font-family:'Karla',sans-serif;
+  }
+  button.primary:hover{ filter:brightness(1.06); }
+  button.primary:disabled{ opacity:.5; cursor:not-allowed; }
+  .form-status{ font-size:13px; color: var(--muted); }
+  .form-status.error{ color: var(--danger); }
+  .form-status.ok{ color: var(--pine); }
+
+  .list-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }
+  .list-head h2{ font-size:20px; }
+  .list-count{ font-size:13px; color: var(--muted); }
+
+  .entries{ display:flex; flex-direction:column; gap:14px; }
+  .entry{
+    background: var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:20px 22px; box-shadow: var(--shadow);
+  }
+  .entry-name{ font-family:'Fraunces',serif; font-weight:600; font-size:18px; margin-bottom:12px; }
+  .entry-options{ display:flex; flex-direction:column; gap:8px; }
+  .opt{
+    display:flex; align-items:center; gap:10px; font-size:14px; padding:8px 10px;
+    background: var(--surface-2); border-radius:8px;
+  }
+  .opt-badge{
+    font-family:'Fraunces',serif; font-weight:700; font-size:12px; color: var(--pine);
+    background: var(--pine-soft); border-radius:6px; width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .opt-name{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .opt a{ color: var(--accent); font-size:13px; text-decoration:none; font-weight:600; flex-shrink:0; }
+  .opt a:hover{ text-decoration:underline; }
+
+  .empty-state{
+    text-align:center; padding:40px 20px; color: var(--muted); font-size:14px;
+    border:1px dashed var(--border); border-radius:14px;
+  }
+  .config-warning{
+    background: var(--accent-soft); border:1px solid var(--accent); color: var(--ink);
+    border-radius:12px; padding:16px 18px; margin-bottom:24px; font-size:13.5px;
+  }
+  .config-warning code{ background: var(--surface); padding:1px 6px; border-radius:4px; }
+
+  footer{ margin-top:44px; text-align:center; color: var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<header class="page">
+  <div class="eyebrow">Amigo secreto · lista de deseos</div>
+  <h1>¿Qué te gustaría recibir?</h1>
+  <p class="subtitle">Escribe tu nombre y hasta 10 opciones de regalo &mdash; nombre del producto o de la tienda, y el link si lo tienes. La lista queda publicada para que tu amigo secreto la vea.</p>
+  <div class="rules">
+    <span class="rule-pill">Mínimo <strong>$70.000</strong></span>
+    <span class="rule-pill">Máximo: <strong>lo que tu corazón generoso decida</strong></span>
+    <span class="rule-pill">Hasta <strong>10</strong> opciones</span>
+  </div>
+</header>
+
+<div id="config-warning" class="config-warning" style="display:none;">
+  Falta configurar la conexión a la base de datos. Edita <code>index.html</code>, busca <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code> al inicio del <code>&lt;script&gt;</code>, y pon los valores de tu proyecto Supabase (Project Settings → API).
+</div>
+
+<form class="card" id="entry-form">
+  <div class="field">
+    <label for="name-input">Tu nombre</label>
+    <input type="text" id="name-input" placeholder="Ej. Nestor Lozano" maxlength="80" autocomplete="off" />
+  </div>
+
+  <div class="options-head">
+    <h3>Opciones de regalo</h3>
+    <span id="options-counter">1 de 10</span>
+  </div>
+  <div id="options-list"></div>
+  <button type="button" class="add-option" id="add-option-btn">+ Agregar otra opción</button>
+
+  <div class="submit-row">
+    <button type="submit" class="primary" id="submit-btn">Publicar mi lista</button>
+    <span class="form-status" id="form-status"></span>
+  </div>
+</form>
+
+<section>
+  <div class="list-head">
+    <h2>Lo que todos pidieron</h2>
+    <span class="list-count" id="list-count"></span>
+  </div>
+  <div class="entries" id="entries-container">
+    <div class="empty-state">Cargando la lista&hellip;</div>
+  </div>
+</section>
+
+<footer>Cualquiera con este link puede ver y agregar su lista.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  // ============================================================
+  // CONFIGURACION — pega aqui los datos de tu proyecto Supabase
+  // (Project Settings -> API en supabase.com)
+  // ============================================================
+  var SUPABASE_URL = 'PON_AQUI_TU_SUPABASE_URL';
+  var SUPABASE_ANON_KEY = 'PON_AQUI_TU_SUPABASE_ANON_KEY';
+  // ============================================================
+
+  var MAX_OPTIONS = 10;
+  var optionsList = document.getElementById('options-list');
+  var addBtn = document.getElementById('add-option-btn');
+  var counter = document.getElementById('options-counter');
+  var form = document.getElementById('entry-form');
+  var nameInput = document.getElementById('name-input');
+  var submitBtn = document.getElementById('submit-btn');
+  var statusEl = document.getElementById('form-status');
+  var entriesContainer = document.getElementById('entries-container');
+  var listCount = document.getElementById('list-count');
+  var configWarning = document.getElementById('config-warning');
+
+  var configured = SUPABASE_URL.indexOf('PON_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('PON_AQUI') === -1;
+  var supabaseClient = null;
+  var currentEntries = [];
+
+  if (!configured){
+    configWarning.style.display = 'block';
+    submitBtn.disabled = true;
+  } else {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  function optionRow(index){
+    var row = document.createElement('div');
+    row.className = 'option-row';
+
+    var num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = index + 1;
+
+    var nameField = document.createElement('input');
+    nameField.type = 'text';
+    nameField.className = 'opt-name-input';
+    nameField.placeholder = 'Producto o tienda';
+    nameField.maxLength = 140;
+
+    var linkField = document.createElement('input');
+    linkField.type = 'url';
+    linkField.className = 'opt-link-input';
+    linkField.placeholder = 'Link (opcional)';
+    linkField.maxLength = 500;
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-btn';
+    removeBtn.setAttribute('aria-label', 'Quitar opción');
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', function(){
+      row.remove();
+      renumberOptions();
+    });
+
+    row.appendChild(num);
+    row.appendChild(nameField);
+    row.appendChild(linkField);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  function renumberOptions(){
+    var rows = optionsList.querySelectorAll('.option-row');
+    rows.forEach(function(row, i){
+      row.querySelector('.num').textContent = i + 1;
+    });
+    counter.textContent = rows.length + ' de ' + MAX_OPTIONS;
+    addBtn.disabled = rows.length >= MAX_OPTIONS;
+    optionsList.querySelectorAll('.remove-btn').forEach(function(btn){
+      btn.style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+    });
+  }
+
+  addBtn.addEventListener('click', function(){
+    var count = optionsList.querySelectorAll('.option-row').length;
+    if (count >= MAX_OPTIONS) return;
+    optionsList.appendChild(optionRow(count));
+    renumberOptions();
+  });
+
+  optionsList.appendChild(optionRow(0));
+  renumberOptions();
+
+  function setStatus(text, kind){
+    statusEl.textContent = text || '';
+    statusEl.className = 'form-status' + (kind ? ' ' + kind : '');
+  }
+
+  function collectOptions(){
+    var rows = optionsList.querySelectorAll('.option-row');
+    var out = [];
+    rows.forEach(function(row){
+      var name = row.querySelector('.opt-name-input').value.trim();
+      var link = row.querySelector('.opt-link-input').value.trim();
+      if (name) out.push({ name: name, link: link || null });
+    });
+    return out;
+  }
+
+  function findExisting(name){
+    var normalized = name.trim().toLowerCase();
+    for (var i = 0; i < currentEntries.length; i++){
+      if ((currentEntries[i].name || '').trim().toLowerCase() === normalized){
+        return currentEntries[i];
+      }
+    }
+    return null;
+  }
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!configured) return;
+
+    var name = nameInput.value.trim();
+    var options = collectOptions();
+
+    if (!name){
+      setStatus('Escribe tu nombre.', 'error');
+      nameInput.focus();
+      return;
+    }
+    if (options.length === 0){
+      setStatus('Agrega al menos una opción de regalo.', 'error');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    setStatus('Publicando...', '');
+
+    try {
+      var existing = findExisting(name);
+      if (existing){
+        var { error } = await supabaseClient
+          .from('entries')
+          .update({ name: name, options: options, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (error) throw error;
+        setStatus('Tu lista se actualizó.', 'ok');
+      } else {
+        var { error: insertError } = await supabaseClient
+          .from('entries')
+          .insert({ name: name, options: options });
+        if (insertError) throw insertError;
+        setStatus('¡Tu lista quedó publicada!', 'ok');
+      }
+      await loadEntries();
+    } catch (err){
+      setStatus('No se pudo publicar. Intenta de nuevo.', 'error');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+
+  function safeUrl(url){
+    try {
+      var u = new URL(url);
+      if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+    } catch (e) {}
+    return null;
+  }
+
+  function renderEntries(){
+    if (currentEntries.length === 0){
+      entriesContainer.innerHTML = '<div class="empty-state">Nadie ha publicado su lista todavía. ¡Sé el primero!</div>';
+      listCount.textContent = '';
+      return;
+    }
+
+    listCount.textContent = currentEntries.length + (currentEntries.length === 1 ? ' persona' : ' personas');
+
+    var sorted = currentEntries.slice().sort(function(a, b){
+      return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+    });
+
+    entriesContainer.innerHTML = sorted.map(function(entry){
+      var opts = (entry.options || []).map(function(opt, i){
+        var link = opt.link ? safeUrl(opt.link) : null;
+        return '<div class="opt">' +
+          '<span class="opt-badge">' + (i + 1) + '</span>' +
+          '<span class="opt-name">' + escapeHtml(opt.name) + '</span>' +
+          (link ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener noreferrer">Ver &rarr;</a>' : '') +
+          '</div>';
+      }).join('');
+
+      return '<div class="entry">' +
+        '<div class="entry-name">' + escapeHtml(entry.name) + '</div>' +
+        '<div class="entry-options">' + opts + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  async function loadEntries(){
+    if (!configured) return;
+    var { data, error } = await supabaseClient
+      .from('entries')
+      .select('id, name, options')
+      .order('name', { ascending: true });
+    if (error){
+      entriesContainer.innerHTML = '<div class="empty-state">No se pudo cargar la lista. Recarga la página.</div>';
+      return;
+    }
+    currentEntries = data || [];
+    renderEntries();
+  }
+
+  function init(){
+    if (!configured){
+      entriesContainer.innerHTML = '<div class="empty-state">Configura Supabase para ver la lista.</div>';
+      return;
+    }
+
+    loadEntries();
+
+    supabaseClient
+      .channel('entries-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, function(){
+        loadEntries();
+      })
+      .subscribe();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
