@@ -125,7 +125,6 @@
 
   .list-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px; }
   .list-head h2{ font-size:20px; }
-  .list-count{ font-size:13px; color: var(--muted); }
 
   .entries{ display:flex; flex-direction:column; gap:14px; }
   .entry{
@@ -165,7 +164,7 @@
 <header class="page">
   <div class="eyebrow">Amigo secreto · lista de deseos</div>
   <h1>¿Qué te gustaría recibir?</h1>
-  <p class="subtitle">Escribe tu nombre y hasta 10 opciones de regalo &mdash; nombre del producto o de la tienda, y el link si lo tienes. La lista queda publicada para que tu amigo secreto la vea.</p>
+  <p class="subtitle">Escribe tu nombre y hasta 10 opciones de regalo &mdash; nombre del producto o de la tienda, y el link si lo tienes. Solo la persona que te tenga a ti como amigo secreto podrá consultar tu lista, buscándote por tu nombre.</p>
   <div class="rules">
     <span class="rule-pill">Mínimo <strong>$70.000</strong></span>
     <span class="rule-pill">Máximo: <strong>lo que tu corazón generoso decida</strong></span>
@@ -196,17 +195,31 @@
   </div>
 </form>
 
-<section>
+<section class="card" id="lookup-card">
   <div class="list-head">
-    <h2>Lo que todos pidieron</h2>
-    <span class="list-count" id="list-count"></span>
+    <h2>¿A quién te tocó?</h2>
   </div>
-  <div class="entries" id="entries-container">
-    <div class="empty-state">Cargando la lista&hellip;</div>
+  <p id="lookup-warning" class="subtitle" style="margin:0 0 16px; text-align:left;">
+    La primera vez que busques, tu elección queda fija para siempre &mdash; ni borrando el navegador ni desde otro dispositivo podrás ver a alguien distinto, mientras escribas tu mismo nombre.
+  </p>
+  <div id="lookup-form-wrap">
+    <div class="field" style="margin-bottom:14px;">
+      <label for="picker-input">Tu nombre (para que el sistema recuerde tu elección)</label>
+      <input type="text" id="picker-input" placeholder="Escribe tu nombre" maxlength="80" autocomplete="off" />
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label for="lookup-input">Nombre de tu amigo secreto</label>
+      <input type="text" id="lookup-input" placeholder="Escribe su nombre exacto" maxlength="80" autocomplete="off" />
+    </div>
+    <div class="submit-row" style="margin-top:0;">
+      <button type="button" class="primary" id="lookup-btn">Ver su lista (una sola vez)</button>
+      <span class="form-status" id="lookup-status"></span>
+    </div>
   </div>
+  <div class="entries" id="lookup-result" style="margin-top:18px;"></div>
 </section>
 
-<footer>Cualquiera con este link puede ver y agregar su lista.</footer>
+<footer>Cada quien solo puede ver, una vez, la lista de la persona que le tocó &mdash; no hay un listado público.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -227,17 +240,23 @@
   var nameInput = document.getElementById('name-input');
   var submitBtn = document.getElementById('submit-btn');
   var statusEl = document.getElementById('form-status');
-  var entriesContainer = document.getElementById('entries-container');
-  var listCount = document.getElementById('list-count');
   var configWarning = document.getElementById('config-warning');
+  var pickerInput = document.getElementById('picker-input');
+  var lookupInput = document.getElementById('lookup-input');
+  var lookupBtn = document.getElementById('lookup-btn');
+  var lookupStatus = document.getElementById('lookup-status');
+  var lookupResult = document.getElementById('lookup-result');
+  var lookupFormWrap = document.getElementById('lookup-form-wrap');
+  var lookupWarning = document.getElementById('lookup-warning');
+  var LOCK_KEY = 'amigoSecretoAsignado';
 
   var configured = SUPABASE_URL.indexOf('PON_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('PON_AQUI') === -1;
   var supabaseClient = null;
-  var currentEntries = [];
 
   if (!configured){
     configWarning.style.display = 'block';
     submitBtn.disabled = true;
+    lookupBtn.disabled = true;
   } else {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
@@ -317,16 +336,6 @@
     return out;
   }
 
-  function findExisting(name){
-    var normalized = name.trim().toLowerCase();
-    for (var i = 0; i < currentEntries.length; i++){
-      if ((currentEntries[i].name || '').trim().toLowerCase() === normalized){
-        return currentEntries[i];
-      }
-    }
-    return null;
-  }
-
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     if (!configured) return;
@@ -348,22 +357,14 @@
     setStatus('Publicando...', '');
 
     try {
-      var existing = findExisting(name);
-      if (existing){
-        var { error } = await supabaseClient
-          .from('entries')
-          .update({ name: name, options: options, updated_at: new Date().toISOString() })
-          .eq('id', existing.id);
-        if (error) throw error;
-        setStatus('Tu lista se actualizó.', 'ok');
-      } else {
-        var { error: insertError } = await supabaseClient
-          .from('entries')
-          .insert({ name: name, options: options });
-        if (insertError) throw insertError;
-        setStatus('¡Tu lista quedó publicada!', 'ok');
-      }
-      await loadEntries();
+      var { error } = await supabaseClient
+        .from('entries')
+        .upsert(
+          { name: name, options: options, updated_at: new Date().toISOString() },
+          { onConflict: 'name' }
+        );
+      if (error) throw error;
+      setStatus('¡Tu lista quedó publicada! Nadie más puede verla salvo quien busque tu nombre.', 'ok');
     } catch (err){
       setStatus('No se pudo publicar. Intenta de nuevo.', 'error');
     } finally {
@@ -385,67 +386,132 @@
     return null;
   }
 
-  function renderEntries(){
-    if (currentEntries.length === 0){
-      entriesContainer.innerHTML = '<div class="empty-state">Nadie ha publicado su lista todavía. ¡Sé el primero!</div>';
-      listCount.textContent = '';
-      return;
-    }
-
-    listCount.textContent = currentEntries.length + (currentEntries.length === 1 ? ' persona' : ' personas');
-
-    var sorted = currentEntries.slice().sort(function(a, b){
-      return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
-    });
-
-    entriesContainer.innerHTML = sorted.map(function(entry){
-      var opts = (entry.options || []).map(function(opt, i){
-        var link = opt.link ? safeUrl(opt.link) : null;
-        return '<div class="opt">' +
-          '<span class="opt-badge">' + (i + 1) + '</span>' +
-          '<span class="opt-name">' + escapeHtml(opt.name) + '</span>' +
-          (link ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener noreferrer">Ver &rarr;</a>' : '') +
-          '</div>';
-      }).join('');
-
-      return '<div class="entry">' +
-        '<div class="entry-name">' + escapeHtml(entry.name) + '</div>' +
-        '<div class="entry-options">' + opts + '</div>' +
+  function renderEntry(entry){
+    var opts = (entry.options || []).map(function(opt, i){
+      var link = opt.link ? safeUrl(opt.link) : null;
+      return '<div class="opt">' +
+        '<span class="opt-badge">' + (i + 1) + '</span>' +
+        '<span class="opt-name">' + escapeHtml(opt.name) + '</span>' +
+        (link ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener noreferrer">Ver &rarr;</a>' : '') +
         '</div>';
     }).join('');
+
+    lookupResult.innerHTML = '<div class="entry">' +
+      '<div class="entry-name">' + escapeHtml(entry.name) + '</div>' +
+      '<div class="entry-options">' + opts + '</div>' +
+      '</div>';
   }
 
-  async function loadEntries(){
+  function setLookupStatus(text, kind){
+    lookupStatus.textContent = text || '';
+    lookupStatus.className = 'form-status' + (kind ? ' ' + kind : '');
+  }
+
+  function getLockedPicker(){
+    try {
+      return localStorage.getItem(LOCK_KEY);
+    } catch (e){
+      return null;
+    }
+  }
+
+  function rememberPicker(pickerName){
+    try {
+      localStorage.setItem(LOCK_KEY, pickerName);
+    } catch (e){
+      // Si el navegador bloquea localStorage, solo perdemos el atajo de
+      // recordar el nombre en este dispositivo. El bloqueo real vive en
+      // el servidor (tabla claims), así que la restricción sigue firme.
+    }
+  }
+
+  function lockScreen(pickerName, assignedName){
+    lookupFormWrap.style.display = 'none';
+    lookupWarning.innerHTML = 'Hola <strong>' + escapeHtml(pickerName) + '</strong> &mdash; tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>. Esta elección quedó fija, no se puede cambiar.';
+  }
+
+  async function claimAndRender(pickerName, targetName){
+    lookupResult.innerHTML = '';
+    setLookupStatus('Buscando...', '');
+
+    try {
+      var { data, error } = await supabaseClient.rpc('claim_or_get_assignment', {
+        p_picker_name: pickerName,
+        p_target_name: targetName || null
+      });
+      if (error) throw error;
+
+      if (!data || data.length === 0){
+        setLookupStatus('', '');
+        lookupResult.innerHTML = '<div class="empty-state">Ese nombre no coincide con nadie que haya publicado su lista todavía.</div>';
+        return null;
+      }
+
+      setLookupStatus('', '');
+      renderEntry(data[0]);
+      return data[0].name;
+    } catch (err){
+      var msg = 'No se pudo buscar. Intenta de nuevo.';
+      if (err && err.message && err.message.indexOf('target_required') !== -1){
+        msg = 'Escribe el nombre de tu amigo secreto.';
+      }
+      setLookupStatus(msg, 'error');
+      return null;
+    }
+  }
+
+  async function lookupPerson(){
     if (!configured) return;
-    var { data, error } = await supabaseClient
-      .from('entries')
-      .select('id, name, options')
-      .order('name', { ascending: true });
-    if (error){
-      entriesContainer.innerHTML = '<div class="empty-state">No se pudo cargar la lista. Recarga la página.</div>';
+
+    var picker = pickerInput.value.trim();
+    var target = lookupInput.value.trim();
+
+    if (!picker){
+      setLookupStatus('Escribe tu nombre primero.', 'error');
+      pickerInput.focus();
       return;
     }
-    currentEntries = data || [];
-    renderEntries();
-  }
-
-  function init(){
-    if (!configured){
-      entriesContainer.innerHTML = '<div class="empty-state">Configura Supabase para ver la lista.</div>';
+    if (!target){
+      setLookupStatus('Escribe el nombre de tu amigo secreto.', 'error');
+      lookupInput.focus();
       return;
     }
 
-    loadEntries();
+    lookupBtn.disabled = true;
+    var assignedName = await claimAndRender(picker, target);
+    lookupBtn.disabled = false;
 
-    supabaseClient
-      .channel('entries-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, function(){
-        loadEntries();
-      })
-      .subscribe();
+    if (assignedName){
+      rememberPicker(picker);
+      lockScreen(picker, assignedName);
+    }
   }
 
-  init();
+  lookupBtn.addEventListener('click', lookupPerson);
+  [pickerInput, lookupInput].forEach(function(input){
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        lookupPerson();
+      }
+    });
+  });
+
+  (function initLookup(){
+    if (!configured) return;
+    var rememberedPicker = getLockedPicker();
+    if (rememberedPicker){
+      pickerInput.value = rememberedPicker;
+      lookupBtn.disabled = true;
+      setLookupStatus('Cargando tu asignación...', '');
+      claimAndRender(rememberedPicker, null).then(function(assignedName){
+        lookupBtn.disabled = false;
+        if (assignedName){
+          lockScreen(rememberedPicker, assignedName);
+        }
+      });
+    }
+  })();
 })();
 </script>
 </body>
