@@ -92,6 +92,24 @@
     background: var(--pine-soft); border:1px solid var(--pine); border-radius:12px; padding:16px 18px;
   }
 
+  #pin-modal-backdrop{
+    position:fixed; inset:0; background:rgba(27,22,17,.6); z-index:1000;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #pin-modal-box{
+    background: var(--surface); border-radius:16px; padding:28px 26px; max-width:360px; width:100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align:center;
+  }
+  #pin-modal-title{ font-family:'Fraunces',serif; font-weight:700; font-size:22px; margin-bottom:10px; }
+  #pin-modal-desc{ color: var(--muted); font-size:13.5px; margin:0 0 18px; line-height:1.5; }
+  #pin-modal-value{
+    width:100%; text-align:center; font-family:'Fraunces',serif; font-size:30px; font-weight:700;
+    letter-spacing:.12em; color: var(--accent); background: var(--accent-soft);
+    border:1px solid var(--accent); border-radius:9px; padding:12px; margin-bottom:16px;
+  }
+  #pin-modal-actions{ display:flex; gap:10px; }
+  #pin-modal-actions button{ flex:1; }
+
   .options-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 4px 0 12px; }
   .options-head h3{ font-size:16px; font-weight:600; }
   .options-head span{ font-size:12.5px; color: var(--muted); }
@@ -261,6 +279,18 @@
 
 <footer>Cada quien solo puede ver, con su PIN, la lista de la persona que le tocó &mdash; no hay un listado público.</footer>
 
+<div id="pin-modal-backdrop" style="display:none;">
+  <div id="pin-modal-box" role="dialog" aria-modal="true" aria-labelledby="pin-modal-title">
+    <div id="pin-modal-title">¡Ya elegiste!</div>
+    <p id="pin-modal-desc">Este es tu PIN &mdash; guárdalo, no se vuelve a mostrar. Es la única forma de volver a consultar quién te tocó.</p>
+    <input type="text" id="pin-modal-value" readonly />
+    <div id="pin-modal-actions">
+      <button type="button" class="add-option" id="pin-modal-copy">Copiar PIN</button>
+      <button type="button" class="primary" id="pin-modal-close">Ya lo guardé</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function(){
@@ -295,6 +325,10 @@
   var pinSearchBtn = document.getElementById('pin-search-btn');
   var pinSearchStatus = document.getElementById('pin-search-status');
   var pinSearchResult = document.getElementById('pin-search-result');
+  var pinModalBackdrop = document.getElementById('pin-modal-backdrop');
+  var pinModalValue = document.getElementById('pin-modal-value');
+  var pinModalCopy = document.getElementById('pin-modal-copy');
+  var pinModalClose = document.getElementById('pin-modal-close');
   var LOCK_KEY = 'amigoSecretoPin';
 
   var configured = SUPABASE_URL.indexOf('PON_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('PON_AQUI') === -1;
@@ -476,7 +510,31 @@
     lookupWarning.innerHTML = 'Tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>. Esta elección quedó fija, no se puede cambiar.';
     generatedPinInput.value = pin;
     pinReveal.style.display = 'block';
+    openPinModal(pin);
   }
+
+  function openPinModal(pin){
+    pinModalValue.value = pin;
+    pinModalBackdrop.style.display = 'flex';
+  }
+
+  function closePinModal(){
+    pinModalBackdrop.style.display = 'none';
+  }
+
+  pinModalClose.addEventListener('click', closePinModal);
+  pinModalBackdrop.addEventListener('click', function(e){
+    if (e.target === pinModalBackdrop) closePinModal();
+  });
+  pinModalCopy.addEventListener('click', async function(){
+    try {
+      await navigator.clipboard.writeText(pinModalValue.value);
+      pinModalCopy.textContent = '¡Copiado!';
+      setTimeout(function(){ pinModalCopy.textContent = 'Copiar PIN'; }, 1500);
+    } catch (e){
+      pinModalValue.select();
+    }
+  });
 
   function lockScreenReturning(assignedName){
     lookupFormWrap.style.display = 'none';
