@@ -83,9 +83,27 @@ $$;
 
 revoke all on function claim_or_get_assignment(text, text) from public;
 grant execute on function claim_or_get_assignment(text, text) to anon, authenticated;
+
+-- Nombres que todavia nadie ha elegido, para llenar el desplegable
+create or replace function get_available_targets()
+returns table (name text)
+language sql
+security definer
+set search_path = public
+as $$
+  select e.name
+  from entries e
+  where lower(trim(e.name)) not in (
+    select lower(trim(assigned_name)) from claims
+  )
+  order by e.name asc;
+$$;
+
+revoke all on function get_available_targets() from public;
+grant execute on function get_available_targets() to anon, authenticated;
 ```
 
-**Cómo funciona el bloqueo**: quien busca escribe su propio nombre (`picker_name`) y el nombre de su amigo secreto (`target_name`). La primera vez, el servidor guarda esa pareja en `claims` y la devuelve. Cualquier búsqueda posterior con el mismo `picker_name` ignora el `target_name` que se escriba y siempre devuelve la asignación original. `localStorage` en el navegador solo recuerda el nombre de quien buscó para no tener que volver a escribirlo — el bloqueo real está en la base de datos, no en el navegador.
+**Cómo funciona el bloqueo**: quien elige escribe su propio nombre (`picker_name`) y selecciona a su amigo secreto de un **desplegable** con los nombres todavía disponibles (`get_available_targets`, excluye a los ya elegidos y al propio nombre). La primera vez, el servidor guarda esa pareja en `claims` y la devuelve. Cualquier consulta posterior con el mismo `picker_name` ignora lo que se seleccione y siempre devuelve la asignación original. El índice único sobre `assigned_name` impide que dos personas elijan al mismo objetivo, incluso si lo intentan al mismo tiempo — en ese caso la segunda persona recibe el error `target_already_taken` y el desplegable se recarga. `localStorage` en el navegador solo recuerda el nombre de quien eligió para no tener que volver a escribirlo — el bloqueo real está en la base de datos.
 
 3. En **Project Settings → API**, copia la **Project URL** y la **anon public key** (o **publishable key**, en proyectos nuevos).
 

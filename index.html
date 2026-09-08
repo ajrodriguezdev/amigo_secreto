@@ -75,12 +75,13 @@
 
   label{ display:block; font-size:13px; font-weight:600; color: var(--ink); margin-bottom:6px; }
   .field{ margin-bottom:18px; }
-  input[type="text"], input[type="url"]{
+  input[type="text"], input[type="url"], select{
     width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:9px;
     background: var(--surface-2); color: var(--ink); font-family:'Karla',sans-serif; font-size:14.5px;
   }
   input::placeholder{ color: var(--muted); opacity:.8; }
-  input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  input:focus, select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  select:disabled{ opacity:.6; }
 
   .options-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 4px 0 12px; }
   .options-head h3{ font-size:16px; font-weight:600; }
@@ -208,11 +209,13 @@
       <input type="text" id="picker-input" placeholder="Escribe tu nombre" maxlength="80" autocomplete="off" />
     </div>
     <div class="field" style="margin-bottom:14px;">
-      <label for="lookup-input">Nombre de tu amigo secreto</label>
-      <input type="text" id="lookup-input" placeholder="Escribe su nombre exacto" maxlength="80" autocomplete="off" />
+      <label for="lookup-select">Elige a tu amigo secreto</label>
+      <select id="lookup-select">
+        <option value="">Cargando disponibles&hellip;</option>
+      </select>
     </div>
     <div class="submit-row" style="margin-top:0;">
-      <button type="button" class="primary" id="lookup-btn">Ver su lista (una sola vez)</button>
+      <button type="button" class="primary" id="lookup-btn">Elegir (una sola vez)</button>
       <span class="form-status" id="lookup-status"></span>
     </div>
   </div>
@@ -242,7 +245,7 @@
   var statusEl = document.getElementById('form-status');
   var configWarning = document.getElementById('config-warning');
   var pickerInput = document.getElementById('picker-input');
-  var lookupInput = document.getElementById('lookup-input');
+  var lookupSelect = document.getElementById('lookup-select');
   var lookupBtn = document.getElementById('lookup-btn');
   var lookupStatus = document.getElementById('lookup-status');
   var lookupResult = document.getElementById('lookup-result');
@@ -443,28 +446,65 @@
 
       if (!data || data.length === 0){
         setLookupStatus('', '');
-        lookupResult.innerHTML = '<div class="empty-state">Ese nombre no coincide con nadie que haya publicado su lista todavía.</div>';
+        lookupResult.innerHTML = '<div class="empty-state">Esa persona no coincide con nadie que haya publicado su lista todavía.</div>';
         return null;
       }
 
       setLookupStatus('', '');
       renderEntry(data[0]);
-      return data[0].name;
+      return { name: data[0].name, error: null };
     } catch (err){
-      var msg = 'No se pudo buscar. Intenta de nuevo.';
-      if (err && err.message && err.message.indexOf('target_required') !== -1){
-        msg = 'Escribe el nombre de tu amigo secreto.';
+      var code = err && err.message ? err.message : '';
+      var msg = 'No se pudo elegir. Intenta de nuevo.';
+      if (code.indexOf('target_required') !== -1){
+        msg = 'Elige a tu amigo secreto de la lista.';
+      } else if (code.indexOf('target_already_taken') !== -1){
+        msg = 'Alguien más acaba de elegir a esa persona justo ahora. Elige otra de la lista actualizada.';
       }
       setLookupStatus(msg, 'error');
-      return null;
+      return { name: null, error: code.indexOf('target_already_taken') !== -1 ? 'taken' : 'other' };
     }
   }
+
+  var lastLoadedNames = [];
+
+  function renderSelectOptions(names){
+    var own = pickerInput.value.trim().toLowerCase();
+    var options = ['<option value="">Selecciona un nombre&hellip;</option>'];
+
+    names.forEach(function(name){
+      var isOwn = name.trim().toLowerCase() === own && own !== '';
+      options.push(
+        '<option value="' + escapeHtml(name) + '"' + (isOwn ? ' disabled' : '') + '>' +
+        escapeHtml(name) + (isOwn ? ' (eres tú)' : '') +
+        '</option>'
+      );
+    });
+
+    lookupSelect.innerHTML = options.join('');
+  }
+
+  async function loadAvailableTargets(){
+    lookupSelect.innerHTML = '<option value="">Cargando disponibles&hellip;</option>';
+    try {
+      var { data, error } = await supabaseClient.rpc('get_available_targets');
+      if (error) throw error;
+      lastLoadedNames = (data || []).map(function(row){ return row.name; });
+      renderSelectOptions(lastLoadedNames);
+    } catch (err){
+      lookupSelect.innerHTML = '<option value="">No se pudo cargar la lista</option>';
+    }
+  }
+
+  pickerInput.addEventListener('input', function(){
+    if (lastLoadedNames.length) renderSelectOptions(lastLoadedNames);
+  });
 
   async function lookupPerson(){
     if (!configured) return;
 
     var picker = pickerInput.value.trim();
-    var target = lookupInput.value.trim();
+    var target = lookupSelect.value;
 
     if (!picker){
       setLookupStatus('Escribe tu nombre primero.', 'error');
@@ -472,45 +512,49 @@
       return;
     }
     if (!target){
-      setLookupStatus('Escribe el nombre de tu amigo secreto.', 'error');
-      lookupInput.focus();
+      setLookupStatus('Elige a tu amigo secreto de la lista.', 'error');
+      lookupSelect.focus();
       return;
     }
 
     lookupBtn.disabled = true;
-    var assignedName = await claimAndRender(picker, target);
+    var result = await claimAndRender(picker, target);
     lookupBtn.disabled = false;
 
-    if (assignedName){
+    if (result && result.name){
       rememberPicker(picker);
-      lockScreen(picker, assignedName);
+      lockScreen(picker, result.name);
+    } else if (result && result.error === 'taken'){
+      await loadAvailableTargets();
     }
   }
 
   lookupBtn.addEventListener('click', lookupPerson);
-  [pickerInput, lookupInput].forEach(function(input){
-    input.addEventListener('keydown', function(e){
-      if (e.key === 'Enter'){
-        e.preventDefault();
-        lookupPerson();
-      }
-    });
+  pickerInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      lookupPerson();
+    }
   });
 
   (function initLookup(){
     if (!configured) return;
+
     var rememberedPicker = getLockedPicker();
     if (rememberedPicker){
       pickerInput.value = rememberedPicker;
       lookupBtn.disabled = true;
       setLookupStatus('Cargando tu asignación...', '');
-      claimAndRender(rememberedPicker, null).then(function(assignedName){
+      claimAndRender(rememberedPicker, null).then(function(result){
         lookupBtn.disabled = false;
-        if (assignedName){
-          lockScreen(rememberedPicker, assignedName);
+        if (result && result.name){
+          lockScreen(rememberedPicker, result.name);
         }
       });
+      return;
     }
+
+    loadAvailableTargets();
   })();
 })();
 </script>
