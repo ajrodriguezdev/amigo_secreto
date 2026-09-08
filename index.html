@@ -626,10 +626,27 @@
       lockScreenAfterDraw(row.pin);
     } catch (err){
       var code = err && err.message ? err.message : '';
-      var msg = 'No se pudo elegir. Intenta de nuevo.';
+
       if (code.indexOf('already_drawn') !== -1){
-        msg = 'Ese nombre ya eligió antes. Si eres tú y perdiste tu PIN, pide que lo busquen en la base de datos.';
-      } else if (code.indexOf('target_already_taken') !== -1){
+        // Ya existe una eleccion para este nombre (de este intento o de uno
+        // anterior). En vez de un callejon sin salida, recuperamos el PIN
+        // real guardado y lo mostramos igual que si acabara de elegir.
+        try {
+          var recovered = await supabaseClient.rpc('get_my_pin', { p_picker_name: picker });
+          if (!recovered.error && recovered.data && recovered.data.length > 0 && recovered.data[0].pin){
+            setLookupStatus('', '');
+            rememberPin(recovered.data[0].pin);
+            lockScreenAfterDraw(recovered.data[0].pin);
+            return;
+          }
+        } catch (e2) { /* si tampoco se pudo recuperar, cae al mensaje generico de abajo */ }
+        setLookupStatus('Ese nombre ya eligió antes, pero no se pudo recuperar el PIN automáticamente. Pide que lo busquen en la base de datos.', 'error');
+        lookupBtn.disabled = false;
+        return;
+      }
+
+      var msg = 'No se pudo elegir. Intenta de nuevo.';
+      if (code.indexOf('target_already_taken') !== -1){
         msg = 'Alguien más acaba de elegir a esa persona justo ahora. Elige otra de la lista actualizada.';
         await loadAvailableTargets();
       } else if (code.indexOf('unknown_participant') !== -1){
