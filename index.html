@@ -466,22 +466,6 @@
     return null;
   }
 
-  function renderEntry(entry){
-    var opts = (entry.options || []).map(function(opt, i){
-      var link = opt.link ? safeUrl(opt.link) : null;
-      return '<div class="opt">' +
-        '<span class="opt-badge">' + (i + 1) + '</span>' +
-        '<span class="opt-name">' + escapeHtml(opt.name) + '</span>' +
-        (link ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener noreferrer">Ver &rarr;</a>' : '') +
-        '</div>';
-    }).join('');
-
-    lookupResult.innerHTML = '<div class="entry">' +
-      '<div class="entry-name">' + escapeHtml(entry.name) + '</div>' +
-      '<div class="entry-options">' + opts + '</div>' +
-      '</div>';
-  }
-
   function setLookupStatus(text, kind){
     lookupStatus.textContent = text || '';
     lookupStatus.className = 'form-status' + (kind ? ' ' + kind : '');
@@ -505,12 +489,18 @@
     }
   }
 
-  function lockScreenAfterDraw(assignedName, pin){
+  function lockScreenAfterDraw(pin){
     lookupFormWrap.style.display = 'none';
-    lookupWarning.innerHTML = 'Tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>. Esta elección quedó fija, no se puede cambiar.';
+    lookupWarning.innerHTML = 'Ya elegiste. Tu elección quedó fija, no se puede cambiar. Guarda tu PIN y consúltalo en privado más tarde en la sección de abajo.';
     generatedPinInput.value = pin;
     pinReveal.style.display = 'block';
     openPinModal(pin);
+  }
+
+  function lockScreenReturning(){
+    lookupFormWrap.style.display = 'none';
+    lookupWarning.innerHTML = 'Ya elegiste antes. Usa tu PIN en la sección de abajo para consultar tu asignación en privado.';
+    pinReveal.style.display = 'none';
   }
 
   function openPinModal(pin){
@@ -535,12 +525,6 @@
       pinModalValue.select();
     }
   });
-
-  function lockScreenReturning(assignedName){
-    lookupFormWrap.style.display = 'none';
-    lookupWarning.innerHTML = 'Tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>.';
-    pinReveal.style.display = 'none';
-  }
 
   copyPinBtn.addEventListener('click', async function(){
     try {
@@ -638,9 +622,8 @@
 
       var row = data[0];
       setLookupStatus('', '');
-      renderEntry(row);
       rememberPin(row.pin);
-      lockScreenAfterDraw(row.name, row.pin);
+      lockScreenAfterDraw(row.pin);
     } catch (err){
       var code = err && err.message ? err.message : '';
       var msg = 'No se pudo elegir. Intenta de nuevo.';
@@ -721,17 +704,11 @@
     populateNameSelects().then(function(){
       var rememberedPin = getLockedPin();
       if (rememberedPin){
+        // No se revela nada automáticamente: solo se precarga el PIN en el
+        // campo de búsqueda. La persona debe darle a "Ver mi asignación"
+        // ella misma, en privado, para que nadie más vea quién le tocó.
         pinSearchInput.value = rememberedPin;
-        lookupFormWrap.style.display = 'none';
-        pinReveal.style.display = 'none';
-        lookupWarning.innerHTML = 'Ya elegiste antes en este dispositivo. Cargando tu asignación&hellip;';
-
-        supabaseClient.rpc('get_assignment_by_pin', { p_pin: rememberedPin }).then(function(res){
-          if (res.data && res.data.length > 0){
-            renderEntry(res.data[0]);
-            lockScreenReturning(res.data[0].name);
-          }
-        });
+        lockScreenReturning();
         return;
       }
 
