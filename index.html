@@ -83,6 +83,15 @@
   input:focus, select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
   select:disabled{ opacity:.6; }
 
+  #generated-pin{
+    font-family:'Fraunces',serif; font-size:24px; font-weight:700; letter-spacing:.1em;
+    text-align:center; color: var(--accent); background: var(--accent-soft);
+    border-color: var(--accent); cursor:text;
+  }
+  #pin-reveal{
+    background: var(--pine-soft); border:1px solid var(--pine); border-radius:12px; padding:16px 18px;
+  }
+
   .options-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 4px 0 12px; }
   .options-head h3{ font-size:16px; font-weight:600; }
   .options-head span{ font-size:12.5px; color: var(--muted); }
@@ -165,7 +174,7 @@
 <header class="page">
   <div class="eyebrow">Amigo secreto · lista de deseos</div>
   <h1>¿Qué te gustaría recibir?</h1>
-  <p class="subtitle">Escribe tu nombre y hasta 10 opciones de regalo &mdash; nombre del producto o de la tienda, y el link si lo tienes. Solo la persona que te tenga a ti como amigo secreto podrá consultar tu lista, buscándote por tu nombre.</p>
+  <p class="subtitle">Elige tu nombre, escribe tu PIN, y hasta 10 opciones de regalo &mdash; nombre del producto o de la tienda, y el link si lo tienes. Solo quien te tenga como amigo secreto podrá ver tu lista.</p>
   <div class="rules">
     <span class="rule-pill">Mínimo <strong>$70.000</strong></span>
     <span class="rule-pill">Máximo: <strong>lo que tu corazón generoso decida</strong></span>
@@ -179,8 +188,10 @@
 
 <form class="card" id="entry-form">
   <div class="field">
-    <label for="name-input">Tu nombre</label>
-    <input type="text" id="name-input" placeholder="Ej. Nestor Lozano" maxlength="80" autocomplete="off" />
+    <label for="name-select">Tu nombre</label>
+    <select id="name-select">
+      <option value="">Cargando nombres&hellip;</option>
+    </select>
   </div>
 
   <div class="options-head">
@@ -198,15 +209,17 @@
 
 <section class="card" id="lookup-card">
   <div class="list-head">
-    <h2>¿A quién te tocó?</h2>
+    <h2>Elige a tu amigo secreto</h2>
   </div>
   <p id="lookup-warning" class="subtitle" style="margin:0 0 16px; text-align:left;">
-    La primera vez que busques, tu elección queda fija para siempre &mdash; ni borrando el navegador ni desde otro dispositivo podrás ver a alguien distinto, mientras escribas tu mismo nombre.
+    Solo puedes elegir <strong>una vez</strong>. Al elegir, el sistema te da un PIN &mdash; guárdalo, es la <strong>única</strong> forma de volver a consultar quién te tocó.
   </p>
   <div id="lookup-form-wrap">
     <div class="field" style="margin-bottom:14px;">
-      <label for="picker-input">Tu nombre (para que el sistema recuerde tu elección)</label>
-      <input type="text" id="picker-input" placeholder="Escribe tu nombre" maxlength="80" autocomplete="off" />
+      <label for="picker-select">Tu nombre</label>
+      <select id="picker-select">
+        <option value="">Cargando nombres&hellip;</option>
+      </select>
     </div>
     <div class="field" style="margin-bottom:14px;">
       <label for="lookup-select">Elige a tu amigo secreto</label>
@@ -219,10 +232,34 @@
       <span class="form-status" id="lookup-status"></span>
     </div>
   </div>
+
+  <div id="pin-reveal" style="display:none; margin-top:18px;">
+    <div class="field" style="margin-bottom:8px;">
+      <label for="generated-pin">Tu PIN &mdash; guárdalo, no se vuelve a mostrar</label>
+      <input type="text" id="generated-pin" readonly />
+    </div>
+    <button type="button" class="add-option" id="copy-pin-btn">Copiar PIN</button>
+  </div>
+
   <div class="entries" id="lookup-result" style="margin-top:18px;"></div>
 </section>
 
-<footer>Cada quien solo puede ver, una vez, la lista de la persona que le tocó &mdash; no hay un listado público.</footer>
+<section class="card" id="pin-lookup-card">
+  <div class="list-head">
+    <h2>¿Ya elegiste? Consulta con tu PIN</h2>
+  </div>
+  <div class="field" style="margin-bottom:14px;">
+    <label for="pin-search-input">Tu PIN</label>
+    <input type="text" id="pin-search-input" placeholder="6 dígitos" maxlength="6" inputmode="numeric" autocomplete="off" />
+  </div>
+  <div class="submit-row" style="margin-top:0;">
+    <button type="button" class="primary" id="pin-search-btn">Ver mi asignación</button>
+    <span class="form-status" id="pin-search-status"></span>
+  </div>
+  <div class="entries" id="pin-search-result" style="margin-top:18px;"></div>
+</section>
+
+<footer>Cada quien solo puede ver, con su PIN, la lista de la persona que le tocó &mdash; no hay un listado público.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -240,18 +277,25 @@
   var addBtn = document.getElementById('add-option-btn');
   var counter = document.getElementById('options-counter');
   var form = document.getElementById('entry-form');
-  var nameInput = document.getElementById('name-input');
+  var nameSelect = document.getElementById('name-select');
   var submitBtn = document.getElementById('submit-btn');
   var statusEl = document.getElementById('form-status');
   var configWarning = document.getElementById('config-warning');
-  var pickerInput = document.getElementById('picker-input');
+  var pickerSelect = document.getElementById('picker-select');
   var lookupSelect = document.getElementById('lookup-select');
   var lookupBtn = document.getElementById('lookup-btn');
   var lookupStatus = document.getElementById('lookup-status');
   var lookupResult = document.getElementById('lookup-result');
   var lookupFormWrap = document.getElementById('lookup-form-wrap');
   var lookupWarning = document.getElementById('lookup-warning');
-  var LOCK_KEY = 'amigoSecretoAsignado';
+  var pinReveal = document.getElementById('pin-reveal');
+  var generatedPinInput = document.getElementById('generated-pin');
+  var copyPinBtn = document.getElementById('copy-pin-btn');
+  var pinSearchInput = document.getElementById('pin-search-input');
+  var pinSearchBtn = document.getElementById('pin-search-btn');
+  var pinSearchStatus = document.getElementById('pin-search-status');
+  var pinSearchResult = document.getElementById('pin-search-result');
+  var LOCK_KEY = 'amigoSecretoPin';
 
   var configured = SUPABASE_URL.indexOf('PON_AQUI') === -1 && SUPABASE_ANON_KEY.indexOf('PON_AQUI') === -1;
   var supabaseClient = null;
@@ -260,6 +304,7 @@
     configWarning.style.display = 'block';
     submitBtn.disabled = true;
     lookupBtn.disabled = true;
+    pinSearchBtn.disabled = true;
   } else {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
@@ -343,12 +388,12 @@
     e.preventDefault();
     if (!configured) return;
 
-    var name = nameInput.value.trim();
+    var name = nameSelect.value;
     var options = collectOptions();
 
     if (!name){
-      setStatus('Escribe tu nombre.', 'error');
-      nameInput.focus();
+      setStatus('Elige tu nombre de la lista.', 'error');
+      nameSelect.focus();
       return;
     }
     if (options.length === 0){
@@ -360,14 +405,12 @@
     setStatus('Publicando...', '');
 
     try {
-      var { error } = await supabaseClient
-        .from('entries')
-        .upsert(
-          { name: name, options: options, updated_at: new Date().toISOString() },
-          { onConflict: 'name' }
-        );
+      var { error } = await supabaseClient.rpc('save_entry', {
+        p_name: name,
+        p_options: options
+      });
       if (error) throw error;
-      setStatus('¡Tu lista quedó publicada! Nadie más puede verla salvo quien busque tu nombre.', 'ok');
+      setStatus('¡Tu lista quedó publicada! Nadie más puede verla salvo quien te haya elegido con su PIN.', 'ok');
     } catch (err){
       setStatus('No se pudo publicar. Intenta de nuevo.', 'error');
     } finally {
@@ -410,7 +453,7 @@
     lookupStatus.className = 'form-status' + (kind ? ' ' + kind : '');
   }
 
-  function getLockedPicker(){
+  function getLockedPin(){
     try {
       return localStorage.getItem(LOCK_KEY);
     } catch (e){
@@ -418,58 +461,43 @@
     }
   }
 
-  function rememberPicker(pickerName){
+  function rememberPin(pin){
     try {
-      localStorage.setItem(LOCK_KEY, pickerName);
+      localStorage.setItem(LOCK_KEY, pin);
     } catch (e){
       // Si el navegador bloquea localStorage, solo perdemos el atajo de
-      // recordar el nombre en este dispositivo. El bloqueo real vive en
-      // el servidor (tabla claims), así que la restricción sigue firme.
+      // recordar el PIN en este dispositivo. El PIN mismo sigue siendo
+      // válido si lo guardaste por tu cuenta.
     }
   }
 
-  function lockScreen(pickerName, assignedName){
+  function lockScreenAfterDraw(assignedName, pin){
     lookupFormWrap.style.display = 'none';
-    lookupWarning.innerHTML = 'Hola <strong>' + escapeHtml(pickerName) + '</strong> &mdash; tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>. Esta elección quedó fija, no se puede cambiar.';
+    lookupWarning.innerHTML = 'Tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>. Esta elección quedó fija, no se puede cambiar.';
+    generatedPinInput.value = pin;
+    pinReveal.style.display = 'block';
   }
 
-  async function claimAndRender(pickerName, targetName){
-    lookupResult.innerHTML = '';
-    setLookupStatus('Buscando...', '');
+  function lockScreenReturning(assignedName){
+    lookupFormWrap.style.display = 'none';
+    lookupWarning.innerHTML = 'Tu amigo secreto es <strong>' + escapeHtml(assignedName) + '</strong>.';
+    pinReveal.style.display = 'none';
+  }
 
+  copyPinBtn.addEventListener('click', async function(){
     try {
-      var { data, error } = await supabaseClient.rpc('claim_or_get_assignment', {
-        p_picker_name: pickerName,
-        p_target_name: targetName || null
-      });
-      if (error) throw error;
-
-      if (!data || data.length === 0){
-        setLookupStatus('', '');
-        lookupResult.innerHTML = '<div class="empty-state">Esa persona no coincide con nadie que haya publicado su lista todavía.</div>';
-        return null;
-      }
-
-      setLookupStatus('', '');
-      renderEntry(data[0]);
-      return { name: data[0].name, error: null };
-    } catch (err){
-      var code = err && err.message ? err.message : '';
-      var msg = 'No se pudo elegir. Intenta de nuevo.';
-      if (code.indexOf('target_required') !== -1){
-        msg = 'Elige a tu amigo secreto de la lista.';
-      } else if (code.indexOf('target_already_taken') !== -1){
-        msg = 'Alguien más acaba de elegir a esa persona justo ahora. Elige otra de la lista actualizada.';
-      }
-      setLookupStatus(msg, 'error');
-      return { name: null, error: code.indexOf('target_already_taken') !== -1 ? 'taken' : 'other' };
+      await navigator.clipboard.writeText(generatedPinInput.value);
+      copyPinBtn.textContent = '¡Copiado!';
+      setTimeout(function(){ copyPinBtn.textContent = 'Copiar PIN'; }, 1500);
+    } catch (e){
+      generatedPinInput.select();
     }
-  }
+  });
 
   var lastLoadedNames = [];
 
   function renderSelectOptions(names){
-    var own = pickerInput.value.trim().toLowerCase();
+    var own = pickerSelect.value.trim().toLowerCase();
     var options = ['<option value="">Selecciona un nombre&hellip;</option>'];
 
     names.forEach(function(name){
@@ -496,19 +524,35 @@
     }
   }
 
-  pickerInput.addEventListener('input', function(){
+  async function populateNameSelects(){
+    try {
+      var { data, error } = await supabaseClient.rpc('get_participant_names');
+      if (error) throw error;
+      var names = (data || []).map(function(row){ return row.name; });
+      var opts = ['<option value="">Selecciona tu nombre&hellip;</option>']
+        .concat(names.map(function(n){ return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }))
+        .join('');
+      nameSelect.innerHTML = opts;
+      pickerSelect.innerHTML = opts;
+    } catch (err){
+      nameSelect.innerHTML = '<option value="">No se pudo cargar</option>';
+      pickerSelect.innerHTML = '<option value="">No se pudo cargar</option>';
+    }
+  }
+
+  pickerSelect.addEventListener('change', function(){
     if (lastLoadedNames.length) renderSelectOptions(lastLoadedNames);
   });
 
-  async function lookupPerson(){
+  async function drawSecretSanta(){
     if (!configured) return;
 
-    var picker = pickerInput.value.trim();
+    var picker = pickerSelect.value;
     var target = lookupSelect.value;
 
     if (!picker){
-      setLookupStatus('Escribe tu nombre primero.', 'error');
-      pickerInput.focus();
+      setLookupStatus('Elige tu nombre primero.', 'error');
+      pickerSelect.focus();
       return;
     }
     if (!target){
@@ -518,43 +562,123 @@
     }
 
     lookupBtn.disabled = true;
-    var result = await claimAndRender(picker, target);
-    lookupBtn.disabled = false;
+    lookupResult.innerHTML = '';
+    setLookupStatus('Eligiendo...', '');
 
-    if (result && result.name){
-      rememberPicker(picker);
-      lockScreen(picker, result.name);
-    } else if (result && result.error === 'taken'){
-      await loadAvailableTargets();
+    try {
+      var { data, error } = await supabaseClient.rpc('draw_secret_santa', {
+        p_picker_name: picker,
+        p_target_name: target
+      });
+      if (error) throw error;
+
+      if (!data || data.length === 0){
+        setLookupStatus('No se pudo completar la elección. Intenta de nuevo.', 'error');
+        lookupBtn.disabled = false;
+        return;
+      }
+
+      var row = data[0];
+      setLookupStatus('', '');
+      renderEntry(row);
+      rememberPin(row.pin);
+      lockScreenAfterDraw(row.name, row.pin);
+    } catch (err){
+      var code = err && err.message ? err.message : '';
+      var msg = 'No se pudo elegir. Intenta de nuevo.';
+      if (code.indexOf('already_drawn') !== -1){
+        msg = 'Ese nombre ya eligió antes. Si eres tú y perdiste tu PIN, pide que lo busquen en la base de datos.';
+      } else if (code.indexOf('target_already_taken') !== -1){
+        msg = 'Alguien más acaba de elegir a esa persona justo ahora. Elige otra de la lista actualizada.';
+        await loadAvailableTargets();
+      } else if (code.indexOf('unknown_participant') !== -1){
+        msg = 'Ese nombre no está en la lista de participantes.';
+      }
+      setLookupStatus(msg, 'error');
+      lookupBtn.disabled = false;
     }
   }
 
-  lookupBtn.addEventListener('click', lookupPerson);
-  pickerInput.addEventListener('keydown', function(e){
+  lookupBtn.addEventListener('click', drawSecretSanta);
+
+  function setPinSearchStatus(text, kind){
+    pinSearchStatus.textContent = text || '';
+    pinSearchStatus.className = 'form-status' + (kind ? ' ' + kind : '');
+  }
+
+  async function searchByPin(){
+    if (!configured) return;
+
+    var pin = pinSearchInput.value.trim();
+    if (!pin){
+      setPinSearchStatus('Escribe tu PIN.', 'error');
+      pinSearchInput.focus();
+      return;
+    }
+
+    pinSearchBtn.disabled = true;
+    pinSearchResult.innerHTML = '';
+    setPinSearchStatus('Buscando...', '');
+
+    try {
+      var { data, error } = await supabaseClient.rpc('get_assignment_by_pin', { p_pin: pin });
+      if (error) throw error;
+
+      if (!data || data.length === 0){
+        setPinSearchStatus('Ese PIN no coincide con ninguna elección.', 'error');
+        return;
+      }
+
+      setPinSearchStatus('', '');
+      var opts = (data[0].options || []).map(function(opt, i){
+        var link = opt.link ? safeUrl(opt.link) : null;
+        return '<div class="opt">' +
+          '<span class="opt-badge">' + (i + 1) + '</span>' +
+          '<span class="opt-name">' + escapeHtml(opt.name) + '</span>' +
+          (link ? '<a href="' + escapeHtml(link) + '" target="_blank" rel="noopener noreferrer">Ver &rarr;</a>' : '') +
+          '</div>';
+      }).join('');
+      pinSearchResult.innerHTML = '<div class="entry">' +
+        '<div class="entry-name">' + escapeHtml(data[0].name) + '</div>' +
+        '<div class="entry-options">' + (opts || '<div class="empty-state">Todavía no ha publicado su lista de regalos.</div>') + '</div>' +
+        '</div>';
+    } catch (err){
+      setPinSearchStatus('No se pudo buscar. Intenta de nuevo.', 'error');
+    } finally {
+      pinSearchBtn.disabled = false;
+    }
+  }
+
+  pinSearchBtn.addEventListener('click', searchByPin);
+  pinSearchInput.addEventListener('keydown', function(e){
     if (e.key === 'Enter'){
       e.preventDefault();
-      lookupPerson();
+      searchByPin();
     }
   });
 
   (function initLookup(){
     if (!configured) return;
 
-    var rememberedPicker = getLockedPicker();
-    if (rememberedPicker){
-      pickerInput.value = rememberedPicker;
-      lookupBtn.disabled = true;
-      setLookupStatus('Cargando tu asignación...', '');
-      claimAndRender(rememberedPicker, null).then(function(result){
-        lookupBtn.disabled = false;
-        if (result && result.name){
-          lockScreen(rememberedPicker, result.name);
-        }
-      });
-      return;
-    }
+    populateNameSelects().then(function(){
+      var rememberedPin = getLockedPin();
+      if (rememberedPin){
+        pinSearchInput.value = rememberedPin;
+        lookupFormWrap.style.display = 'none';
+        pinReveal.style.display = 'none';
+        lookupWarning.innerHTML = 'Ya elegiste antes en este dispositivo. Cargando tu asignación&hellip;';
 
-    loadAvailableTargets();
+        supabaseClient.rpc('get_assignment_by_pin', { p_pin: rememberedPin }).then(function(res){
+          if (res.data && res.data.length > 0){
+            renderEntry(res.data[0]);
+            lockScreenReturning(res.data[0].name);
+          }
+        });
+        return;
+      }
+
+      loadAvailableTargets();
+    });
   })();
 })();
 </script>
