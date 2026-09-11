@@ -446,7 +446,8 @@
       if (error) throw error;
       setStatus('¡Tu lista quedó publicada! Nadie más puede verla salvo quien te haya elegido con su PIN.', 'ok');
     } catch (err){
-      setStatus('No se pudo publicar. Intenta de nuevo.', 'error');
+      console.error('save_entry error:', err);
+      setStatus('No se pudo publicar: ' + (err && err.message ? err.message : 'Intenta de nuevo.'), 'error');
     } finally {
       submitBtn.disabled = false;
     }
